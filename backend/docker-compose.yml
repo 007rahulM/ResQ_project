@@ -1,0 +1,31 @@
+version: '3.8'  #version tells docker to use the modern rules
+
+#   SERVICE 1 the database
+
+#s sercices is a list of machines we want to rent or use 
+services: 
+#mongo_db is we area namaing our first machine monog_db
+  mongo_db:
+    image: mongo:6.0  #the recipe:downlad mongodb version 6
+    container_name: resq_db2  #the nametag:easirer to find in the list
+    restart: always   #the safetu net if it crashes, restart it automatically
+    ports:
+      - "27017:27017"  #the extenstion cord :laptop port: contianer port
+    volumes:
+      - mongo_data:/data/db  #the usb stick to save to a volume namedmongo_data
+
+#  SERVICE 2 the dashboard to see wt the data is all in port 8081 which is directly conetect to the mongo db data which we can see
+  mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - "8081:8081"   #we will open this in the browser
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo_db  # this dashbord of nongo express name talks to the db mongdb other serive 1 then give the data in this dashboard to talk to the db named monogo_db
+      ME_CONFIG_MONGODB_PORT: 27017          # adding the port to which the mongo_db is listeint to it so to connect
+    depends_on:
+      - mongo_db      # dont start the dashbord until the db is ready
+
+
+volumes:
+  mongo_data:  #actually creates the storage space we refereneced above in th voulume
