@@ -30,6 +30,10 @@ app.get("/", (req,res)=>{
     res.send("ResQ Server is running...");
 });
 
+//register routs import and the route boht come here
+const authRoutes=require("./routes/authRoutes");
+app.use("/api/auth",authRoutes);
+
 // start listening
 const PORT=process.env.PORT ||5000;
 
