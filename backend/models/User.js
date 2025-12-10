@@ -47,6 +47,23 @@ const UserSchema=new mongoose.Schema({
     createdAt:{
         type:Date,
         default:Date.now
+    },
+    //new  fields for security fields
+    //pocket 1 the staus checkboc
+    //boolean means true/false
+    //default its false means guilty until proven incconet evyer nre user starts  as unverified 
+    isVerified:{
+        type:Boolean,
+        default:false
+    },
+    //pocket 2 the secret ticker holder 
+    //we store the random string  here 
+    //select fasle is a sececurirty rule
+    //it meand if i search for this user  dont not show me this token unless I ask for it
+    //why? so we dont accidentally leak the secret ticket to thr frontend
+    verificationToken:{
+        type:String,
+        select:false
     }
 });
 

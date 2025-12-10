@@ -2,6 +2,8 @@
 const User=require("../models/User");  //import the  model 
 const bcrypt=require("bcryptjs");   //impot bcrypt for hashing passwords
 const jwt=require("jsonwebtoken");  //import jsonwebtoken for creating tokends the keycard maker
+const crypto=require("crypto"); // tools to generate random strings for verification tokens
+const sendEmail=require("../utils/sendemail"); //the mailmam utility to send emails
 
 //helper function to generate token
 //this creates the wristband the token that allows access
@@ -34,6 +36,15 @@ const registerUser=async(req,res)=>{
         return res.status(400).json({message:"User already exists"});
     }
 
+
+    // the new lofic starts here
+    // generate a secreet ticket called verification token
+    //crypto.randomBytes(20) creats 20 random characters
+    //.toString("hex") converts them into readable text like "abcscerjeo"
+
+    const verifyToken=crypto.randomBytes(20).toString('hex');
+
+
       //4 if user not exists 
       //creat a new user and hash the password
       //hashing is genearating a salt a random data to make the hash unique
@@ -46,26 +57,63 @@ const registerUser=async(req,res)=>{
       //5 create a new user 
       const user =await User.create({
         username,email,password:hashedPassword, //save the hash not the palin password
-        role,phone,address
+        role,phone,address, verificationToken:verifyToken // saving the ticke which generated in teh new user but when we confirm that ticket then verify gets true 
       });
    
+      // write the letter construct the email
+      //this is the link the user will click
+      //it points to our backend verify route 
+
+      const verifyUrl=`http://localhost:5000/api/auth/verify/${verifyToken}`;
+
+      const message=`<h1>Welcome to ResQ! </h1>
+                    <p>Please verify your email to unlock your account</p>
+                     ${verifyUrl}
+      
+      `;
+
+      //send the email call the mailman 
+      try{
+        await sendEmail(user.email,"ResQ - Verify Your Email",message);
+        //if successfull, we log it 
+        console.log("Verification email sent to:", user,email);
+
+      }
+      catch(err){
+        console.log("Email failed  to send:",err);
+        //note in a real app, we might delte the user if email fails
+        //for now we keep them but they stay unverified
+      }
+
+      //send response 
+      //we tell the frontend :"CReated now g o cehk your email"
+      res.status(201).json({
+        message:"User Registration Successful! Please check your email to verify",
+        token:verifyToken //only for testing purpose right now
+      });
+
+
+
+
+
+
       //6 success response send back the user info +the token genrated
-      if(user){
-        res.status(201).json({
-           _id:user.id,
-           username:user.username,
-           email:user.email,
-           role:user.role,
-           token:generateToken(user.id)  //the keycard or the badge is created at sent here 
+    //   if(user){
+    //     res.status(201).json({
+    //        _id:user.id,
+    //        username:user.username,
+    //        email:user.email,
+    //        role:user.role,
+    //        token:generateToken(user.id)  //the keycard or the badge is created at sent here 
 
 
-        });
+    //     });
 
         
-    }
-    else{
-        res.status(400).json({message:"Invalid user data"});
-      }
+    // }
+    // else{
+    //     res.status(400).json({message:"Invalid user data"});
+    //   }
     
     }catch(err){
         console.error(err);
@@ -117,9 +165,43 @@ const loginUser=async(req,res)=>{
 
 };
 
+//veify User email
+//GET /api/auth/verify/:token
+//public access
+
+const verifyUser=async(req,res)=>{
+    try{
+        //1 get the ticket from the url
+        //req.params.token  grabs the "ahh33erfef..." part
+        const {token}=req.params;
+
+        //2 search for a user witth this ticket 
+        ///search the cabinet
+        //we look for a user where verificationToken matches the one provided
+        const user=await User.findOne({verificationToken:token});
+
+        if(!user){
+            return res.status(400).json({message:"Invalid or Expired token"});
+        }
+   
+
+        //3 the stamp update use
+        user.isVerified=true; //mark as real
+        user.verificationToken=undefined; //throw away the used tickect
+
+        await user.save(); //save changes to the db
+
+        //4 success response
+        res.status(200).json({message:"Email Verified successfully! you can now login"});
+
+}catch(err){
+    console.error(err);
+    res.status(500).json({message:"Server Error"});
+}
+
+};
 
 
 
 
-
-module.exports={registerUser,loginUser};
+module.exports={registerUser,loginUser,verifyUser};
