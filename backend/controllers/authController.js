@@ -204,4 +204,4 @@ const verifyUser=async(req,res)=>{
 
 
 
-module.exports={registerUser,loginUser,verifyUser};
+module.exports={registerUser,loginUser,verifyUser,generateToken};

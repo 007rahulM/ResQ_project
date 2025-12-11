@@ -21,16 +21,29 @@ const UserSchema=new mongoose.Schema({
         ],
     },
 
+    // hybrid login support password can be optional 
+    //password : not required for google users
+    //we enforce "Password required " in the register controller for email users
     password:{
         type:String,
-        required:[true,"Please add a password"],
+        required:false, //[true,"Please add a password"],  //we make this not required so that it becomes optional
         minlength: 6,
         select: false //do not return password by default in queries
     },
 
+    //googel id :only for Google Users
+    //spare :true is critical it ells mongo that
+    //its okay if 1000 users have null forf this field only check uniqneness if a value exists
+    //sore the google id so we recognize them next time
+    googleId:{
+        type:String,
+        unique:true,
+        sparse:true //allows mutliple users to have " null" googleId (if they use email/pass)
+    },
+
     role:{
         type:String,
-        enum:["donar","ngo","admin","volunteer"], //strict contol who the role to be from enum no other can be acces it shoukd be within one of them 
+        enum:["donor","ngo","admin","volunteer"], //strict contol who the role to be from enum no other can be acces it shoukd be within one of them 
 
     },
     //for the resq logic

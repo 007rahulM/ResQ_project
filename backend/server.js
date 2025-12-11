@@ -1,7 +1,7 @@
 
 //imports all the necessary modules and tools 
 const express=require("express");
-const dotenv=require("dotenv");
+const dotenv = require('dotenv');
 const cors=require("cors");
 const helmet=require("helmet");
 const morgan=require("morgan");
@@ -18,12 +18,15 @@ connectDB();
 // initialize the app
 const app=express();
 
+const passport=require("passport");
+require("./config/passport"); //
 //middleware the security gurards
 app.use(express.json());  //allows us to accepts json data in requests
 app.use(cors());   //allows frontend to talk to backend
 app.use(helmet());  //adds extra security headres
 app.use(morgan("dev")); //give logs every request to the console its for give logs in development environment 
 
+app.use(passport.initialize()); //initialize passport middleware from config/passport.js
 
 // a simple test route
 app.get("/", (req,res)=>{
