@@ -5,7 +5,8 @@ const dotenv = require('dotenv');
 const cors=require("cors");
 const helmet=require("helmet");
 const morgan=require("morgan");
-const connectDB=require("./config/db");  
+const connectDB=require("./config/db"); 
+const path=require("path") //import the path module 
 
 
 // load the secrets from .env
@@ -28,6 +29,8 @@ app.use(morgan("dev")); //give logs every request to the console its for give lo
 
 app.use(passport.initialize()); //initialize passport middleware from config/passport.js
 
+app.use("/uploads",express.static(path.join(__dirname,"uploads"))); //make the uploads folder publically accessible
+
 // a simple test route
 app.get("/", (req,res)=>{
     res.send("ResQ Server is running...");
@@ -36,6 +39,11 @@ app.get("/", (req,res)=>{
 //register routs import and the route boht come here
 const authRoutes=require("./routes/authRoutes");
 app.use("/api/auth",authRoutes);
+
+
+//donation routes
+const donationRoutes=require("./routes/donationRoutes");
+app.use("/api/donations",donationRoutes);
 
 // start listening
 const PORT=process.env.PORT ||5000;
