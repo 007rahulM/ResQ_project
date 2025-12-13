@@ -1,5 +1,8 @@
 
 const mongoose=require("mongoose");
+const geocoder=require("../utils/geocoder"); //import the geocoder utility
+
+
 const DonationSchema=new mongoose.Schema({
     //whip posted this linking it 
     //we sotre the user ud here this like a foreign key in sql like that but we sotre here in the model itself 
@@ -42,14 +45,25 @@ const DonationSchema=new mongoose.Schema({
     },
 
     //location of the food donation
-    //simple address for now
-    //in feature i will make this geosatial lat/lng
 
+    //geospatial data
     address:{
         type:String,
         required:[true,"Please add an adress where the food is located"]
 
     },
+    location:{
+      type:{
+        type:String,
+        enum:["Point"] // GeoJSON Standard
+      },
+      coordinates:{
+        type:[Number], //[longitude, latitude] numbers
+        index:"2dsphere" // enables find nearby by this 2sphere
+      },
+      formattedAddress:String   //formated evrtying into a stingle string
+    },
+
     expiresAt:{
         type:Date,
         required:[true,"Please add expiration date and time like When does this food spoils?"]
@@ -60,5 +74,31 @@ const DonationSchema=new mongoose.Schema({
     }
 
 });
+
+//pre-save hook so its an auto convert adress to coordinates
+DonationSchema.pre("save",async function(){
+    if(!this.isModified("address")){
+     return; //just retyrn next if address is not modified
+    }
+    const loc=await geocoder.geocode(this.address);
+    console.log("GEOCODER RESULT:", loc); 
+    // ------------------------
+
+    // Ensure we actually got a result before crashing
+    if (loc.length === 0) {
+        console.log("ERROR: Address not found!");
+        return; 
+    }
+    this.location={
+        type:"Point",
+        coordinates:[loc[0].longitude,loc[0].latitude],
+        formattedAddress:loc[0].formattedAddress
+    };
+
+   //clean up 
+   this.address=undefined;// opyional Don't save raw address string
+});
+
+
 
 module.exports=mongoose.model("Donation",DonationSchema);

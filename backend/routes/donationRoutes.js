@@ -1,7 +1,7 @@
 
 const express=require("express");
 const router=express.Router();
-const {createDonation}=require("../controllers/donationController"); //import the controller function
+const {createDonation,getDonations}=require("../controllers/donationController"); //import the controller function
 const {protect}=require("../middleware/authMiddleware"); //import the auth middleware the bouncer
 const upload=require("../config/upload"); //the machine multer 
 
@@ -12,5 +12,8 @@ const upload=require("../config/upload"); //the machine multer
 //then 3 createDonation in controller and dave data to db
 
 router.post("/",protect,upload.single("image"),createDonation);
+
+//GET /api/donations it fetch donations and its public
+router.get("/",getDonations);
 
 module.exports=router;

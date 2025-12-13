@@ -27,7 +27,7 @@ const createDonation=async(req,res)=>{
 
          //4 create a doation object
          //notice we get donor from req.user.id because they are loggedin via jwt
-         const donation=new Donation({
+         const donation=await Donation.create({
             donor:req.user.id,
             title,
             description,
@@ -48,4 +48,64 @@ const createDonation=async(req,res)=>{
     }
 };
 
-module.exports={createDonation};
+
+//Get all donations with optional Geospatial filtering
+//route GET/api/donations
+//accessed by public no auth needed
+
+const getDonations=async(req,res)=>{
+    try{
+        let query;
+        //check did the user provide location params or not
+        //then exprected format is it in lag and lat and raduis like format: ?lat=12.97&lng=77&radius=10 (in km)
+
+        const{lat,lng,radius}=req.query;
+
+        if(lat&&lng){
+   //convert string to numbers 
+   const latNum=parseFloat(lat);
+   const lngNum=parseFloat(lng);
+   const radNum=parseFloat(radius) ||10 ; //default 10 km if radius missing
+
+
+
+
+            //geospatial search
+            //earth rafuis=6378 km 
+            //we drive raduis by earth raduis to get raduis for mongodb
+//           const rad=radius || 10; //by default tak 10km if raduis is missing
+            const raduisInRadians=radNum / 6378;
+     
+            query=Donation.find({
+                location:{
+                    $geoWithin:{
+                        $centerSphere:[[lngNum,latNum],raduisInRadians]
+                    }
+                },
+                status:"available" //only show available so donation find witht location with given dat and satus of food with available
+                
+            });
+            
+        }else{
+            //normal search if no location proivded
+            //just return everything sorted by newest
+            query=Donation.find({status:"available"}).sort({createdAt:-1});
+        }
+
+        //execute the query
+        //.populate("donor") replace the id 67335... with actual User data (Name,Phone)
+        const donataions=await query.populate("donor","username phone");
+
+        res.status(200).json({
+            count:donataions.length, //number of donations found
+            data:donataions
+        });
+}catch(err){
+    console.error(err);
+    res.status(500).json({message:"Server Error"});
+}
+
+};
+
+
+module.exports={createDonation,getDonations};
