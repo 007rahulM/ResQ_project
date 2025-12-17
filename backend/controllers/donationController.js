@@ -1,111 +1,171 @@
+const Donation = require("../models/Donation"); 
 
-const Donation=require("../models/Donation"); //import the donation model 
-
-//Create a new donataion
-//POST /api/donations
-//accessed by autheticated user only its private only looged in users can access
-
-const createDonation=async(req,res)=>{
-    try{
-        //1 check the machine multer
-        //multer in congif ran before this controller function //
-        //it process the file and put the deaitls in req.file
-
-        if(!req.file){
-            return res.status(400).json({message:"Please upload a food image"});
+// --- 1. CREATE DONATION ---
+// POST /api/donations
+const createDonation = async (req, res) => {
+    try {
+        // Check if file exists
+        if (!req.file) {
+            return res.status(400).json({ message: "Please upload a food image" });
         }
 
-         //2 get the ingredients from teh text data form the body
-         //get the all provide data or need data from the body
-         const{title,description,quantity,address,expiresAt}=req.body;
+        const { title, description, quantity, address, expiresAt } = req.body;
 
-         //3 validation if user send all teh data
-         if(!title || !description || ! quantity || !address || !expiresAt){
-            return res.status(400).json({message:"Please fill all the fields"});
+        // Validation
+        if (!title || !description || !quantity || !address || !expiresAt) {
+            return res.status(400).json({ message: "Please fill all the fields" });
+        }
 
-         }
+        // --- WINDOWS PATH FIX ---
+        // Windows saves paths like "uploads\image.jpg". We need "uploads/image.jpg"
+        const imagePath = req.file.path.replace(/\\/g, "/");
 
-         //4 create a doation object
-         //notice we get donor from req.user.id because they are loggedin via jwt
-         const donation=await Donation.create({
-            donor:req.user.id,
+        const donation = await Donation.create({
+            donor: req.user._id, // Use _id for safety
             title,
             description,
             address,
             quantity,
             expiresAt,
-            image:req.file.path // we save the path string in the db not the bonary data so the space is less taken
+            image: imagePath // Save the fixed path
+        });
 
-         });
+        res.status(201).json(donation);
 
-
-         //return the created success status
-         res.status(201).json(donation); //it return 201 atatus created and proivde the donation object 
-
-    }catch(err){
-        console.error(err);
-    res.status(500).json({message:"Server Error"});
+    } catch (err) {
+        console.error("❌ Create Donation Error:", err.message);
+        res.status(500).json({ message: "Server Error", error: err.message });
     }
 };
 
-
-//Get all donations with optional Geospatial filtering
-//route GET/api/donations
-//accessed by public no auth needed
-
-const getDonations=async(req,res)=>{
-    try{
+// --- 2. GET ALL DONATIONS (Filtered) ---
+// GET /api/donations
+const getDonations = async (req, res) => {
+    try {
         let query;
-        //check did the user provide location params or not
-        //then exprected format is it in lag and lat and raduis like format: ?lat=12.97&lng=77&radius=10 (in km)
+        const { lat, lng, radius } = req.query;
 
-        const{lat,lng,radius}=req.query;
+        // --- FILTER LOGIC ---
+        // 1. Status must be "available"
+        // 2. Expiry Date must be GREATER THAN ($gt) Now (Future)
+        let filter = { 
+            status: "available",
+            expiresAt: { $gt: new Date() } 
+        };
 
-        if(lat&&lng){
-   //convert string to numbers 
-   const latNum=parseFloat(lat);
-   const lngNum=parseFloat(lng);
-   const radNum=parseFloat(radius) ||10 ; //default 10 km if radius missing
+        // If Geo-Location is provided
+        if (lat && lng) {
+            const latNum = parseFloat(lat);
+            const lngNum = parseFloat(lng);
+            const radNum = parseFloat(radius) || 10;
+            const radiusInRadians = radNum / 6378;
 
-
-
-
-            //geospatial search
-            //earth rafuis=6378 km 
-            //we drive raduis by earth raduis to get raduis for mongodb
-//           const rad=radius || 10; //by default tak 10km if raduis is missing
-            const raduisInRadians=radNum / 6378;
-     
-            query=Donation.find({
-                location:{
-                    $geoWithin:{
-                        $centerSphere:[[lngNum,latNum],raduisInRadians]
+            query = Donation.find({
+                ...filter, // Keep the status & date filter!
+                location: {
+                    $geoWithin: {
+                        $centerSphere: [[lngNum, latNum], radiusInRadians]
                     }
-                },
-                status:"available" //only show available so donation find witht location with given dat and satus of food with available
-                
+                }
             });
-            
-        }else{
-            //normal search if no location proivded
-            //just return everything sorted by newest
-            query=Donation.find({status:"available"}).sort({createdAt:-1});
+        } else {
+            // Normal search
+            query = Donation.find(filter).sort({ createdAt: -1 });
         }
 
-        //execute the query
-        //.populate("donor") replace the id 67335... with actual User data (Name,Phone)
-        const donataions=await query.populate("donor","username phone");
+        const donations = await query.populate("donor", "username phone");
 
         res.status(200).json({
-            count:donataions.length, //number of donations found
-            data:donataions
+            count: donations.length,
+            data: donations
         });
-}catch(err){
-    console.error(err);
-    res.status(500).json({message:"Server Error"});
-}
-
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server Error" });
+    }
 };
 
+// --- 3. GET SINGLE DONATION ---
+// GET /api/donations/:id
+const getDonationById = async (req, res) => {
+    try {
+        const donation = await Donation.findById(req.params.id).populate("donor", "username phone email");
 
-module.exports={createDonation,getDonations};
+        if (!donation) {
+            return res.status(404).json({ message: "Donation not found" });
+        }
+
+        res.status(200).json(donation);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+// --- 4. CLAIM DONATION ---
+// PUT /api/donations/:id/claim
+const claimDonation = async (req, res) => {
+    try {
+        const donation = await Donation.findById(req.params.id);
+
+        if (!donation) {
+            return res.status(404).json({ message: "Donation not found" });
+        }
+
+        if (donation.status !== "available") {
+            return res.status(400).json({ message: "This donation is already claimed!" });
+        }
+
+        donation.status = "claimed";
+        await donation.save();
+
+        res.status(200).json({ message: "Donation claimed successfully!", donation });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+// --- 5. GET MY DONATIONS ---
+// GET /api/donations/my-donations
+const getMyDonations = async (req, res) => {
+    try {
+        const donations = await Donation.find({ donor: req.user._id }).sort({ createdAt: -1 });
+        res.status(200).json(donations);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+// --- 6. DELETE DONATION ---
+// DELETE /api/donations/:id
+const deleteDonation = async (req, res) => {
+    try {
+        const donation = await Donation.findById(req.params.id);
+
+        if (!donation) {
+            return res.status(404).json({ message: "Donation not found" });
+        }
+
+        if (donation.donor.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: "Not authorized to delete this" });
+        }
+
+        await donation.deleteOne(); 
+        res.status(200).json({ message: "Donation removed" });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+module.exports = { 
+    createDonation, 
+    getDonations, 
+    getDonationById, 
+    claimDonation,
+    getMyDonations, 
+    deleteDonation 
+};

@@ -1,19 +1,33 @@
+const express = require("express");
+const router = express.Router();
+const { 
+    createDonation, 
+    getDonations, 
+    getDonationById, 
+    claimDonation, 
+    getMyDonations, 
+    deleteDonation 
+} = require("../controllers/donationController");
 
-const express=require("express");
-const router=express.Router();
-const {createDonation,getDonations}=require("../controllers/donationController"); //import the controller function
-const {protect}=require("../middleware/authMiddleware"); //import the auth middleware the bouncer
-const upload=require("../config/upload"); //the machine multer 
+const { protect } = require("../middleware/authMiddleware");
+const upload = require("../config/upload");
 
-//POST /api/donations
-//chain of commandas:
-//1 protect check if user is logged in if yes add teh user info in teh thhe conlole then move to 
-//2 uploads.single("image") it porcess the file upload field name must be image if success move to
-//then 3 createDonation in controller and dave data to db
+// --- CREATE DONATION (With Error Handling) ---
+router.post("/", protect, (req, res, next) => {
+    upload.single("image")(req, res, (err) => {
+        if (err) {
+            // This catches Multer errors (File too large, wrong type)
+            return res.status(400).json({ message: err.message });
+        }
+        // If no error, continue to the controller
+        next();
+    });
+}, createDonation);
 
-router.post("/",protect,upload.single("image"),createDonation);
+router.get("/", getDonations);
+router.get("/my-donations", protect, getMyDonations);
+router.delete("/:id", protect, deleteDonation); 
+router.get("/:id", getDonationById);
+router.put("/:id/claim", protect, claimDonation);
 
-//GET /api/donations it fetch donations and its public
-router.get("/",getDonations);
-
-module.exports=router;
+module.exports = router;
